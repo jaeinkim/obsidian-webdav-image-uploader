@@ -1,6 +1,7 @@
 import { requestUrl, RequestUrlParam, RequestUrlResponse } from "obsidian";
 import WebDavImageUploaderPlugin from "./main";
 import { getToken } from "./utils";
+import { WebDavImageUploaderSettings } from "./settings";
 
 export class WebDavClient {
 	plugin: WebDavImageUploaderPlugin;
@@ -14,11 +15,7 @@ export class WebDavClient {
 
 	initClient() {
 		const settings = this.plugin.settings;
-		this.client = new WebDavClientInner(
-			settings.url,
-			settings.username,
-			settings.password,
-		);
+		this.client = new WebDavClientInner(settings);
 	}
 
 	async downloadFile(url: string, sourcePath?: string) {
@@ -75,11 +72,16 @@ export class WebDavClient {
 	}
 
 	getUrl(path: string) {
-		return encodeURI(this.plugin.settings.url + path);
+		const domain =
+			this.plugin.settings.directLink !== ""
+				? this.plugin.settings.directLink
+				: this.plugin.settings.url;
+		return encodeURI(domain + path);
 	}
 
 	getPath(url: string) {
-		return decodeURI(url.replace(this.plugin.settings.url, ""));
+		const index = url.indexOf("/", "https://".length + 1);
+		return decodeURI(url.substring(index));
 	}
 }
 
@@ -93,11 +95,13 @@ export interface FileInfo {
  */
 class WebDavClientInner {
 	private baseUrl: string;
+	private directLink: string;
 	private authHeader: string;
 
-	constructor(url: string, username?: string, password?: string) {
+	constructor(settings: WebDavImageUploaderSettings) {
+		const { url, directLink, username, password } = settings;
+		this.directLink = directLink;
 		this.baseUrl = url.endsWith("/") ? url.slice(0, -1) : url;
-
 		if (username && password) {
 			const credentials = getToken(username, password);
 			this.authHeader = `Basic ${credentials}`;
@@ -135,7 +139,7 @@ class WebDavClientInner {
 
 	async getFileContents(path: string) {
 		const encodedPath = this.encodePath(path);
-		const url = this.buildUrl(encodedPath);
+		const url = this.buildUrl(encodedPath, true);
 
 		const response = await this.request({
 			url,
@@ -274,11 +278,15 @@ class WebDavClientInner {
 		});
 	}
 
-	private buildUrl(path: string) {
+	private buildUrl(path: string, useDirectLink = false) {
 		if (!path.startsWith("/")) {
 			path = "/" + path;
 		}
-		return this.baseUrl + path;
+		const base =
+			useDirectLink && this.directLink !== ""
+				? this.directLink
+				: this.baseUrl;
+		return base + path;
 	}
 
 	private encodePath(path: string) {

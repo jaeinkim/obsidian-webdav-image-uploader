@@ -17,6 +17,8 @@ export interface WebDavImageUploaderSettings {
 	password?: string;
 	disableBasicAuth?: boolean;
 
+    directLink: string;
+
 	// Upload
 	enableUpload: boolean;
 	format: string;
@@ -33,6 +35,8 @@ export const DEFAULT_SETTINGS: WebDavImageUploaderSettings = {
 	username: "",
 	password: "",
 	disableBasicAuth: false,
+
+    directLink: "",
 
 	enableUpload: true,
 	format: "/{{nameext}}",
@@ -88,6 +92,25 @@ export class WebDavImageUploaderSettingTab extends PluginSettingTab {
 						this.plugin.settings.url = value;
 						this.saveSettings();
 					})
+			);
+
+		new Setting(containerEl)
+			.setName("Direct link")
+			.setDesc(
+				"If not empty, the domain inserted into the note will be replaced with the direct link.",
+			)
+			.addText((text) =>
+				text
+					.setValue(this.plugin.settings.directLink)
+					.setPlaceholder("https://directlink.com")
+					.onChange((value) => {
+						value = value.trim();
+						if (value.endsWith("/")) {
+							value = value.slice(0, -1);
+						}
+						this.plugin.settings.directLink = value;
+						this.saveSettings();
+					}),
 			);
 
 		new Setting(containerEl)

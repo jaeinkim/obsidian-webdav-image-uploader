@@ -441,7 +441,11 @@ export default class WebDavImageUploaderPlugin extends Plugin {
 	}
 
 	isWebdavUrl(url: string) {
-		return url.startsWith(this.settings.url);
+		return (
+			url.startsWith(this.settings.url) ||
+			(this.settings.directLink !== "" &&
+				url.startsWith(this.settings.directLink))
+		);
 	}
 
 	isExcludeFile(path: string) {
