@@ -142,16 +142,14 @@ export default class WebDavImageUploaderPlugin extends Plugin {
 			return;
 		}
 
-		let fileList: FileList | undefined;
+		let files: File[] = [];
 		if (e.type === "paste") {
-			fileList = (e as ClipboardEvent).clipboardData?.files;
+			files = this.getFilesFromClipboard(e as ClipboardEvent);
 		} else if (e.type === "drop") {
-			fileList = (e as DragEvent).dataTransfer?.files;
+			files = Array.from((e as DragEvent).dataTransfer?.files ?? []);
 		}
 
-		const files = Array.from(fileList ?? []).filter(
-			(f) => !this.isExcludeFile(f.name),
-		);
+		files = files.filter((f) => !this.isExcludeFile(f.name));
 
 		if (files.length === 0) {
 			return;
@@ -454,5 +452,33 @@ export default class WebDavImageUploaderPlugin extends Plugin {
 			return false;
 		}
 		return !this.settings.includeExtensions.includes(extension);
+	}
+
+	// Fix: Electron caches clipboardData.files after the first paste event,
+	// causing all subsequent pastes to insert the same image.
+	// We use Electron's native clipboard.readImage() to always get fresh data,
+	// and generate a unique filename with a timestamp to avoid WebDAV path collisions.
+	getFilesFromClipboard(e: ClipboardEvent): File[] {
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+			const { clipboard } = require("electron") as any;
+			const img = clipboard.readImage();
+			if (!img.isEmpty()) {
+				const buf = img.toPNG();
+				return [new File([buf], `image-${Date.now()}.png`, { type: "image/png" })];
+			}
+		} catch (_) {
+			// Not in Electron context (e.g. mobile), fall through to web API
+		}
+
+		const cb = e.clipboardData;
+		if (cb == null) return [];
+		if (cb.items) {
+			return Array.from(cb.items)
+				.filter((it) => it.kind === "file")
+				.map((it) => it.getAsFile())
+				.filter((f): f is File => f != null);
+		}
+		return Array.from(cb.files ?? []);
 	}
 }
